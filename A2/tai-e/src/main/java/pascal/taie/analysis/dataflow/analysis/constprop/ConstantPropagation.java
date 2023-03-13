@@ -90,15 +90,11 @@ public class ConstantPropagation extends
             return Value.getNAC();
         }
 
-        if (v1.isConstant() && v2.isConstant()) {
-            if (v1.getConstant() == v2.getConstant()) {
-                return Value.makeConstant(v1.getConstant());
-            } else {
-                return Value.getNAC();
-            }
+        if (v1.isConstant() && v2.isConstant() && v1.getConstant() == v2.getConstant()) {
+            return Value.makeConstant(v1.getConstant());
         }
 
-        return Value.getUndef();
+        return Value.getNAC();
     }
 
     @Override
