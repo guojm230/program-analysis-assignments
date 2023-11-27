@@ -59,14 +59,4 @@ public class DeadCodeTest {
     public void testLoops() {
         testDCD("Loops");
     }
-
-    @Test
-    public void test(){
-        Main.main(new String[]{
-                "-pp",
-                "-a","class-dumper",
-                "-cp","C:/Users/guojm/Documents/Projects/program-analysis-assignments/A3/tai-e/src/test/java",
-                "-m","pascal.taie.analysis.TestIR"
-        });
-    }
 }
