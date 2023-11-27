@@ -25,6 +25,7 @@ package pascal.taie.analysis.dataflow.analysis;
 import pascal.taie.analysis.dataflow.fact.SetFact;
 import pascal.taie.analysis.graph.cfg.CFG;
 import pascal.taie.config.AnalysisConfig;
+import pascal.taie.ir.exp.RValue;
 import pascal.taie.ir.exp.Var;
 import pascal.taie.ir.stmt.Stmt;
 
@@ -62,27 +63,24 @@ public class LiveVariableAnalysis extends
 
     @Override
     public boolean transferNode(Stmt stmt, SetFact<Var> in, SetFact<Var> out) {
-        var def = stmt.getDef();
-        var used = stmt.getUses();
-        var fact = out.copy();
-        var changed = false;
-        if (def.isPresent() && def.get() instanceof Var variable) {
-            if (fact.contains(variable) && !used.contains(variable)) {
-                fact.remove(variable);
+        var defVariable = stmt.getDef();
+        var useVariables = stmt.getUses();
+        var oldIn = in.copy();
+
+        in.clear();
+        in.union(out);
+        defVariable.ifPresent(lv->{
+            if (lv instanceof Var v){
+                in.remove(v);
+            }
+        });
+
+        for (var useVariable : useVariables) {
+            if (useVariable instanceof Var v){
+                in.add(v);
             }
         }
 
-        for (var v : used) {
-            if (v instanceof Var variable) {
-                fact.add(variable);
-            }
-        }
-
-        changed = !fact.equals(in);
-        if (changed) {
-            in.clear();
-            in.union(fact);
-        }
-        return changed;
+        return !oldIn.equals(in);
     }
 }

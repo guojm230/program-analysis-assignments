@@ -46,11 +46,9 @@ class IterativeSolver<Node, Fact> extends Solver<Node, Fact> {
                 if (node == cfg.getExit()) {
                     continue;
                 }
-                var outEdges = cfg.getOutEdgesOf(node);
                 var outFact = analysis.newInitialFact();
-                for (var edge : outEdges) {
-                    var successor = edge.getTarget();
-                    analysis.meetInto(result.getInFact(successor), outFact);
+                for (var succNode : cfg.getSuccsOf(node)) {
+                    analysis.meetInto(result.getInFact(succNode), outFact);
                 }
                 result.setOutFact(node, outFact);
                 changed = analysis.transferNode(node, result.getInFact(node), outFact) || changed;

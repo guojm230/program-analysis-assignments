@@ -40,14 +40,9 @@ import pascal.taie.ir.exp.FieldAccess;
 import pascal.taie.ir.exp.NewExp;
 import pascal.taie.ir.exp.RValue;
 import pascal.taie.ir.exp.Var;
-import pascal.taie.ir.stmt.AssignStmt;
-import pascal.taie.ir.stmt.If;
-import pascal.taie.ir.stmt.Stmt;
-import pascal.taie.ir.stmt.SwitchStmt;
+import pascal.taie.ir.stmt.*;
 
-import java.util.Comparator;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 public class DeadCodeDetection extends MethodAnalysis {
 
@@ -71,7 +66,111 @@ public class DeadCodeDetection extends MethodAnalysis {
         Set<Stmt> deadCode = new TreeSet<>(Comparator.comparing(Stmt::getIndex));
         // TODO - finish me
         // Your task is to recognize dead code in ir and add it to deadCode
+        // mark all reached stmt
+
+        var unreachedStmt = new HashSet<Stmt>(cfg.getNodes());
+        var workList = new LinkedList<Stmt>();
+        workList.add(cfg.getEntry());
+        // cfg相对ir的stmts会添加entry和exit两个节点
+        // exit节点不应该出现在结果中
+        unreachedStmt.remove(cfg.getExit());
+        // iterate cfg
+        while (!workList.isEmpty()){
+            var stmt = workList.pop();
+            unreachedStmt.remove(stmt);
+            // unused variable
+            if (isUnusedVar(stmt,liveVars)){
+                deadCode.add(stmt);
+            }
+
+            // if and switch
+            if (stmt instanceof If ifStmt){
+                var condition = ifStmt.getCondition();
+                var cpFact = constants.getResult(stmt);
+                var value = ConstantPropagation.evaluate(condition,cpFact);
+
+                for (Edge<Stmt> stmtEdge : cfg.getOutEdgesOf(stmt)) {
+                    if (value.isNAC() || (stmtEdge.getKind() == Edge.Kind.IF_TRUE && value.getConstant() == 1)){
+                        var target = stmtEdge.getTarget();
+                        if (unreachedStmt.contains(target)){
+                            workList.add(target);
+                        }
+                    }
+
+                    if (value.isNAC() || (stmtEdge.getKind() == Edge.Kind.IF_FALSE && value.getConstant() == 0)){
+                        var target = stmtEdge.getTarget();
+                        if (unreachedStmt.contains(target)){
+                            workList.add(target);
+                        }
+                    }
+                }
+            } else if (stmt instanceof SwitchStmt switchStmt){
+                var switchVar = switchStmt.getVar();
+                var value = constants.getResult(stmt).get(switchVar);
+                if (value.isNAC()){
+                    for (Stmt succStmt : cfg.getSuccsOf(stmt)) {
+                        if (unreachedStmt.contains(succStmt)){
+                            workList.add(succStmt);
+                        }
+                    }
+                } else {
+                    var consValue = value.getConstant();
+                    Edge<Stmt> defaultEdge = null;
+                    var isMatch = false;
+                    for (Edge<Stmt> stmtEdge : cfg.getOutEdgesOf(stmt)) {
+                        if(stmtEdge.getKind() == Edge.Kind.SWITCH_DEFAULT){
+                            defaultEdge = stmtEdge;
+                            continue;
+                        }
+
+                        if (stmtEdge.getKind() == Edge.Kind.SWITCH_CASE){
+                            if (consValue == stmtEdge.getCaseValue()){
+                                isMatch = true;
+                                var target = stmtEdge.getTarget();
+                                if (unreachedStmt.contains(target)){
+                                    workList.add(target);
+                                }
+                            }
+                        }
+                    }
+
+                    if (!isMatch && defaultEdge != null){
+                        var target = defaultEdge.getTarget();
+                        if (unreachedStmt.contains(target)){
+                            workList.add(target);
+                        }
+                    }
+                }
+            } else {
+                for (Stmt succStmt : cfg.getSuccsOf(stmt)) {
+                    if (unreachedStmt.contains(succStmt)){
+                        workList.add(succStmt);
+                    }
+                }
+            }
+        }
+
+        deadCode.addAll(unreachedStmt);
+
         return deadCode;
+    }
+
+    private boolean isUnusedVar(Stmt node,DataflowResult<Stmt,SetFact<Var>> liveVars){
+        var defVar = node.getDef();
+        if (defVar.isEmpty()){
+            return false;
+        }
+
+        for (RValue use : node.getUses()) {
+            if (!hasNoSideEffect(use)){
+                return false;
+            }
+        }
+
+        if (defVar.get() instanceof Var v){
+            return !liveVars.getResult(node).contains(v);
+        }
+        return false;
     }
 
     /**

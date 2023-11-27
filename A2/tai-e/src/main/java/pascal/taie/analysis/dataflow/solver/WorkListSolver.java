@@ -41,9 +41,9 @@ class WorkListSolver<Node, Fact> extends Solver<Node, Fact> {
         while (!workList.isEmpty()) {
             var node = workList.pop();
             var outFact = result.getOutFact(node);
-            var inFact = result.getInFact(node);
-            for (Node inNode : cfg.getPredsOf(node)) {
-                analysis.meetInto(result.getOutFact(inNode), inFact);
+            var inFact = analysis.newInitialFact();
+            for (Node prevNode : cfg.getPredsOf(node)) {
+                analysis.meetInto(result.getOutFact(prevNode), inFact);
             }
             if (analysis.transferNode(node, inFact, outFact)) {
                 workList.addAll(cfg.getSuccsOf(node));
